@@ -24,7 +24,7 @@
             vs: "vs",
             by: "by"
           },
-          c3: {}
+          c3: {withTransition: false}
         };
         opts = $.extend(true, defaults, opts);
         if ((base = opts.c3).size == null) {
