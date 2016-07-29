@@ -150,11 +150,11 @@ callWithJQuery ($) ->
         "Count as Fraction of Columns": tpl.fractionOf(tpl.count(), "col",   usFmtPct)
 
     renderers =
-        "Table":          (pvtData, opts) ->   pivotTableRenderer(pvtData, opts)
-        "Table Barchart": (pvtData, opts) -> $(pivotTableRenderer(pvtData, opts)).barchart()
-        "Heatmap":        (pvtData, opts) -> $(pivotTableRenderer(pvtData, opts)).heatmap()
-        "Row Heatmap":    (pvtData, opts) -> $(pivotTableRenderer(pvtData, opts)).heatmap("rowheatmap")
-        "Col Heatmap":    (pvtData, opts) -> $(pivotTableRenderer(pvtData, opts)).heatmap("colheatmap")
+        "Table":          (data, opts) ->   pivotTableRenderer(data, opts)
+        "Table Barchart": (data, opts) -> $(pivotTableRenderer(data, opts)).barchart()
+        "Heatmap":        (data, opts) -> $(pivotTableRenderer(data, opts)).heatmap("heatmap",    opts)
+        "Row Heatmap":    (data, opts) -> $(pivotTableRenderer(data, opts)).heatmap("rowheatmap", opts)
+        "Col Heatmap":    (data, opts) -> $(pivotTableRenderer(data, opts)).heatmap("colheatmap", opts)
 
     locales = 
         en: 
@@ -410,6 +410,7 @@ callWithJQuery ($) ->
             return len
 
         #the first few rows are for col headers
+        thead = document.createElement("thead")
         for own j, c of colAttrs
             tr = document.createElement("tr")
             if parseInt(j) == 0 and rowAttrs.length != 0
@@ -437,7 +438,7 @@ callWithJQuery ($) ->
                 th.innerHTML = opts.localeStrings.totals
                 th.setAttribute("rowspan", colAttrs.length + (if rowAttrs.length ==0 then 0 else 1))
                 tr.appendChild th
-            result.appendChild tr
+            thead.appendChild tr
 
         #then a row for row header headers
         if rowAttrs.length !=0
@@ -452,9 +453,11 @@ callWithJQuery ($) ->
                 th.className = "pvtTotalLabel"
                 th.innerHTML = opts.localeStrings.totals
             tr.appendChild th
-            result.appendChild tr
+            thead.appendChild tr
+        result.appendChild thead
 
         #now the actual data rows, with their row headers and totals
+        tbody = document.createElement("tbody")
         for own i, rowKey of rowKeys
             tr = document.createElement("tr")
             for own j, txt of rowKey
@@ -484,7 +487,7 @@ callWithJQuery ($) ->
             td.setAttribute("data-value", val)
             td.setAttribute("data-for", "row"+i)
             tr.appendChild td
-            result.appendChild tr
+            tbody.appendChild tr
 
         #finally, the row for col totals, and a grand total
         tr = document.createElement("tr")
@@ -509,7 +512,8 @@ callWithJQuery ($) ->
         td.textContent = totalAggregator.format(val)
         td.setAttribute("data-value", val)
         tr.appendChild td
-        result.appendChild tr
+        tbody.appendChild tr
+        result.appendChild tbody
 
         #squirrel this away for later
         result.setAttribute("data-numrows", rowKeys.length)
@@ -526,6 +530,7 @@ callWithJQuery ($) ->
             cols : []
             rows: []
             vals: []
+            dataClass: PivotData
             filter: -> true
             aggregator: aggregatorTemplates.count()()
             aggregatorName: "Count"
@@ -539,7 +544,7 @@ callWithJQuery ($) ->
 
         result = null
         try
-            pivotData = new PivotData(input, opts)
+            pivotData = new opts.dataClass(input, opts)
             try
                 result = opts.renderer(pivotData, opts.rendererOptions)
             catch e
@@ -568,6 +573,7 @@ callWithJQuery ($) ->
             hiddenAttributes: []
             menuLimit: 200
             cols: [], rows: [], vals: []
+            dataClass: PivotData
             exclusions: {}
             inclusions: {}
             unusedAttrsVertical: 85
@@ -768,6 +774,7 @@ callWithJQuery ($) ->
                     rendererOptions: opts.rendererOptions
                     sorters: opts.sorters
                     cols: [], rows: []
+                    dataClass: opts.dataClass
 
                 numInputsToProcess = opts.aggregators[aggregator.val()]([])().numInputs ? 0
                 vals = []
@@ -872,23 +879,21 @@ callWithJQuery ($) ->
     Heatmap post-processing
     ###
 
-    $.fn.heatmap = (scope = "heatmap") ->
+    $.fn.heatmap = (scope = "heatmap", opts) ->
         numRows = @data "numrows"
         numCols = @data "numcols"
 
-        colorGen = (color, min, max) ->
-            hexGen = switch color
-                when "red"   then (hex) -> "ff#{hex}#{hex}"
-                when "green" then (hex) -> "#{hex}ff#{hex}"
-                when "blue"  then (hex) -> "#{hex}#{hex}ff"
-
+        # given a series of values
+        # must return a function to map a given value to a CSS color
+        colorScaleGenerator = opts?.heatmap?.colorScaleGenerator
+        colorScaleGenerator ?= (values) ->
+            min = Math.min(values...)
+            max = Math.max(values...)
             return (x) ->
-                intensity = 255 - Math.round 255*(x-min)/(max-min)
-                hex = intensity.toString(16).split(".")[0]
-                hex = 0+hex if hex.length == 1
-                return hexGen(hex)
+                nonRed = 255 - Math.round 255*(x-min)/(max-min)
+                return "rgb(255,#{nonRed},#{nonRed})"
 
-        heatmapper = (scope, color) =>
+        heatmapper = (scope) =>
             forEachCell = (f) =>
                 @find(scope).each ->
                     x = $(this).data("value")
@@ -896,19 +901,16 @@ callWithJQuery ($) ->
 
             values = []
             forEachCell (x) -> values.push x
-            colorFor = colorGen color, Math.min(values...), Math.max(values...)
-            forEachCell (x, elem) -> elem.css "background-color", "#" + colorFor(x)
+            colorScale = colorScaleGenerator(values)
+            forEachCell (x, elem) -> elem.css "background-color", colorScale(x)
 
         switch scope
-            when "heatmap"
-                heatmapper ".pvtVal", "red"
-            when "rowheatmap"
-                heatmapper ".pvtVal.row#{i}", "red" for i in [0...numRows]
-            when "colheatmap"
-                heatmapper ".pvtVal.col#{j}", "red" for j in [0...numCols]
+            when "heatmap"    then heatmapper ".pvtVal"
+            when "rowheatmap" then heatmapper ".pvtVal.row#{i}" for i in [0...numRows]
+            when "colheatmap" then heatmapper ".pvtVal.col#{j}" for j in [0...numCols]
 
-        heatmapper ".pvtTotal.rowTotal", "red"
-        heatmapper ".pvtTotal.colTotal", "red"
+        heatmapper ".pvtTotal.rowTotal"
+        heatmapper ".pvtTotal.colTotal"
 
         return this
 

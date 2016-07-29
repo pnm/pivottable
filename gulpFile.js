@@ -11,7 +11,8 @@ var gulp = require('gulp'),
     rename = require('gulp-rename'),
     sourcemaps = require('gulp-sourcemaps'),
     concat = require('gulp-concat'),
-    minifyCSS = require('gulp-minify-css');
+    minifyCSS = require('gulp-minify-css'),
+    serve = require('gulp-serve');
 
 gulp.task('makeCss', function() {
     gulp.src('./dist/pivot.css')
@@ -23,7 +24,7 @@ gulp.task('makeCss', function() {
 
 gulp.task('makeJs', function() {
     
-    gulp.src('./*.coffee')
+    gulp.src(['./*.coffee', './locales/*.coffee'])
         //compile to js (and create map files)
         .pipe(sourcemaps.init())
         .pipe(coffee()).on('error', gutil.log)
@@ -85,6 +86,8 @@ gulp.task('minor', function() {
 gulp.task('major', function() {
     runSequence('bumpMajor', 'default', 'tag', 'publish', 'push');
 });
+
+gulp.task('serve', serve('.'));
 
 gulp.task('watch', function() {
   gulp.watch('./*.coffee', ['makeJs']);

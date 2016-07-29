@@ -351,20 +351,20 @@
       };
     })(aggregatorTemplates);
     renderers = {
-      "Table": function(pvtData, opts) {
-        return pivotTableRenderer(pvtData, opts);
+      "Table": function(data, opts) {
+        return pivotTableRenderer(data, opts);
       },
-      "Table Barchart": function(pvtData, opts) {
-        return $(pivotTableRenderer(pvtData, opts)).barchart();
+      "Table Barchart": function(data, opts) {
+        return $(pivotTableRenderer(data, opts)).barchart();
       },
-      "Heatmap": function(pvtData, opts) {
-        return $(pivotTableRenderer(pvtData, opts)).heatmap();
+      "Heatmap": function(data, opts) {
+        return $(pivotTableRenderer(data, opts)).heatmap("heatmap", opts);
       },
-      "Row Heatmap": function(pvtData, opts) {
-        return $(pivotTableRenderer(pvtData, opts)).heatmap("rowheatmap");
+      "Row Heatmap": function(data, opts) {
+        return $(pivotTableRenderer(data, opts)).heatmap("rowheatmap", opts);
       },
-      "Col Heatmap": function(pvtData, opts) {
-        return $(pivotTableRenderer(pvtData, opts)).heatmap("colheatmap");
+      "Col Heatmap": function(data, opts) {
+        return $(pivotTableRenderer(data, opts)).heatmap("colheatmap", opts);
       }
     };
     locales = {
@@ -737,7 +737,7 @@
     Default Renderer for hierarchical table layout
      */
     pivotTableRenderer = function(pivotData, opts) {
-      var aggregator, c, colAttrs, colKey, colKeys, defaults, i, j, r, result, rowAttrs, rowKey, rowKeys, spanSize, td, th, totalAggregator, tr, txt, val, x;
+      var aggregator, c, colAttrs, colKey, colKeys, defaults, i, j, r, result, rowAttrs, rowKey, rowKeys, spanSize, tbody, td, th, thead, totalAggregator, tr, txt, val, x;
       defaults = {
         localeStrings: {
           totals: "Totals"
@@ -778,6 +778,7 @@
         }
         return len;
       };
+      thead = document.createElement("thead");
       for (j in colAttrs) {
         if (!hasProp.call(colAttrs, j)) continue;
         c = colAttrs[j];
@@ -814,7 +815,7 @@
           th.setAttribute("rowspan", colAttrs.length + (rowAttrs.length === 0 ? 0 : 1));
           tr.appendChild(th);
         }
-        result.appendChild(tr);
+        thead.appendChild(tr);
       }
       if (rowAttrs.length !== 0) {
         tr = document.createElement("tr");
@@ -832,8 +833,10 @@
           th.innerHTML = opts.localeStrings.totals;
         }
         tr.appendChild(th);
-        result.appendChild(tr);
+        thead.appendChild(tr);
       }
+      result.appendChild(thead);
+      tbody = document.createElement("tbody");
       for (i in rowKeys) {
         if (!hasProp.call(rowKeys, i)) continue;
         rowKey = rowKeys[i];
@@ -872,7 +875,7 @@
         td.setAttribute("data-value", val);
         td.setAttribute("data-for", "row" + i);
         tr.appendChild(td);
-        result.appendChild(tr);
+        tbody.appendChild(tr);
       }
       tr = document.createElement("tr");
       th = document.createElement("th");
@@ -899,7 +902,8 @@
       td.textContent = totalAggregator.format(val);
       td.setAttribute("data-value", val);
       tr.appendChild(td);
-      result.appendChild(tr);
+      tbody.appendChild(tr);
+      result.appendChild(tbody);
       result.setAttribute("data-numrows", rowKeys.length);
       result.setAttribute("data-numcols", colKeys.length);
       return result;
@@ -914,6 +918,7 @@
         cols: [],
         rows: [],
         vals: [],
+        dataClass: PivotData,
         filter: function() {
           return true;
         },
@@ -928,7 +933,7 @@
       opts = $.extend(defaults, opts);
       result = null;
       try {
-        pivotData = new PivotData(input, opts);
+        pivotData = new opts.dataClass(input, opts);
         try {
           result = opts.renderer(pivotData, opts.rendererOptions);
         } catch (error) {
@@ -975,6 +980,7 @@
         cols: [],
         rows: [],
         vals: [],
+        dataClass: PivotData,
         exclusions: {},
         inclusions: {},
         unusedAttrsVertical: 85,
@@ -1232,7 +1238,8 @@
               rendererOptions: opts.rendererOptions,
               sorters: opts.sorters,
               cols: [],
-              rows: []
+              rows: [],
+              dataClass: opts.dataClass
             };
             numInputsToProcess = (ref5 = opts.aggregators[aggregator.val()]([])().numInputs) != null ? ref5 : 0;
             vals = [];
@@ -1367,44 +1374,29 @@
     /*
     Heatmap post-processing
      */
-    $.fn.heatmap = function(scope) {
-      var colorGen, heatmapper, i, j, l, n, numCols, numRows, ref, ref1;
+    $.fn.heatmap = function(scope, opts) {
+      var colorScaleGenerator, heatmapper, i, j, l, n, numCols, numRows, ref, ref1, ref2;
       if (scope == null) {
         scope = "heatmap";
       }
       numRows = this.data("numrows");
       numCols = this.data("numcols");
-      colorGen = function(color, min, max) {
-        var hexGen;
-        hexGen = (function() {
-          switch (color) {
-            case "red":
-              return function(hex) {
-                return "ff" + hex + hex;
-              };
-            case "green":
-              return function(hex) {
-                return hex + "ff" + hex;
-              };
-            case "blue":
-              return function(hex) {
-                return "" + hex + hex + "ff";
-              };
-          }
-        })();
-        return function(x) {
-          var hex, intensity;
-          intensity = 255 - Math.round(255 * (x - min) / (max - min));
-          hex = intensity.toString(16).split(".")[0];
-          if (hex.length === 1) {
-            hex = 0 + hex;
-          }
-          return hexGen(hex);
+      colorScaleGenerator = opts != null ? (ref = opts.heatmap) != null ? ref.colorScaleGenerator : void 0 : void 0;
+      if (colorScaleGenerator == null) {
+        colorScaleGenerator = function(values) {
+          var max, min;
+          min = Math.min.apply(Math, values);
+          max = Math.max.apply(Math, values);
+          return function(x) {
+            var nonRed;
+            nonRed = 255 - Math.round(255 * (x - min) / (max - min));
+            return "rgb(255," + nonRed + "," + nonRed + ")";
+          };
         };
-      };
+      }
       heatmapper = (function(_this) {
-        return function(scope, color) {
-          var colorFor, forEachCell, values;
+        return function(scope) {
+          var colorScale, forEachCell, values;
           forEachCell = function(f) {
             return _this.find(scope).each(function() {
               var x;
@@ -1418,28 +1410,28 @@
           forEachCell(function(x) {
             return values.push(x);
           });
-          colorFor = colorGen(color, Math.min.apply(Math, values), Math.max.apply(Math, values));
+          colorScale = colorScaleGenerator(values);
           return forEachCell(function(x, elem) {
-            return elem.css("background-color", "#" + colorFor(x));
+            return elem.css("background-color", colorScale(x));
           });
         };
       })(this);
       switch (scope) {
         case "heatmap":
-          heatmapper(".pvtVal", "red");
+          heatmapper(".pvtVal");
           break;
         case "rowheatmap":
-          for (i = l = 0, ref = numRows; 0 <= ref ? l < ref : l > ref; i = 0 <= ref ? ++l : --l) {
-            heatmapper(".pvtVal.row" + i, "red");
+          for (i = l = 0, ref1 = numRows; 0 <= ref1 ? l < ref1 : l > ref1; i = 0 <= ref1 ? ++l : --l) {
+            heatmapper(".pvtVal.row" + i);
           }
           break;
         case "colheatmap":
-          for (j = n = 0, ref1 = numCols; 0 <= ref1 ? n < ref1 : n > ref1; j = 0 <= ref1 ? ++n : --n) {
-            heatmapper(".pvtVal.col" + j, "red");
+          for (j = n = 0, ref2 = numCols; 0 <= ref2 ? n < ref2 : n > ref2; j = 0 <= ref2 ? ++n : --n) {
+            heatmapper(".pvtVal.col" + j);
           }
       }
-      heatmapper(".pvtTotal.rowTotal", "red");
-      heatmapper(".pvtTotal.colTotal", "red");
+      heatmapper(".pvtTotal.rowTotal");
+      heatmapper(".pvtTotal.colTotal");
       return this;
     };
 

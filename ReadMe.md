@@ -137,6 +137,8 @@ After modifying any of the `.coffee` files at the top of the repo, you can compi
 
 Once that's done, you can point your browser to `tests/index.html` to run the [Jasmine](http://jasmine.github.io/) test suite. You can view the [current test results here](http://nicolas.kruchten.com/pivottable/tests).
 
+The easiest way to modify the code and work with the examples is to leave a `node_modules/gulp/bin/gulp.js watch serve` command running, which will automatically compile the CoffeeScript files when they are modified and will also run a local web server you can connect to to run the tests and examples.
+
 ## How can I contribute?
 
 Pull requests are welcome! Here are some [Contribution Guidelines](https://github.com/nicolaskruchten/pivottable/blob/master/CONTRIBUTING.md).
@@ -147,7 +149,7 @@ Please first check the [Frequently Asked Questions](https://github.com/nicolaskr
 
 ## Copyright & Licence (MIT License)
 
-PivotTable.js is © 2012-2013 Nicolas Kruchten, Datacratic, other contributors
+PivotTable.js is © 2012-2016 Nicolas Kruchten, Datacratic, other contributors
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
